@@ -103,7 +103,7 @@ func NewConfig() (*Config, error) {
 		RAG: RAGConfig{
 			Provider: "ct",
 			CTRAG: CTRAGConfig{
-				BaseURL: fmt.Sprintf("http://%s.18:8080/api/v1", SUBNET_PREFIX),
+				BaseURL: "http://panda-wiki-rag:8080/api/v1",
 				APIKey:  "sk-1234567890",
 			},
 		},

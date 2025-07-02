@@ -20,7 +20,7 @@ type ErrorResponse = {
 
 type Response<T> = BasicResponse<T> | ErrorResponse;
 
-const request = <T>(options: AxiosRequestConfig): Promise<T> => {
+const createRequest = <T>(options: AxiosRequestConfig): Promise<T> => {
   const token = localStorage.getItem('panda_wiki_token') || ''
   const config = {
     baseURL: "/",
@@ -57,6 +57,23 @@ const request = <T>(options: AxiosRequestConfig): Promise<T> => {
   );
 
   return service(options);
+};
+
+const request = {
+  get: <T>(url: string, config?: AxiosRequestConfig): Promise<T> => {
+    return createRequest<T>({ ...config, method: 'GET', url });
+  },
+  post: <T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
+    return createRequest<T>({ ...config, method: 'POST', url, data });
+  },
+  put: <T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> => {
+    return createRequest<T>({ ...config, method: 'PUT', url, data });
+  },
+  delete: <T>(url: string, config?: AxiosRequestConfig): Promise<T> => {
+    return createRequest<T>({ ...config, method: 'DELETE', url });
+  },
+  // 保持向后兼容
+  request: createRequest,
 };
 
 export default request;

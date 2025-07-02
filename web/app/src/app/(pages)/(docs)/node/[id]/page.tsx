@@ -4,15 +4,11 @@ import Doc from "@/views/node";
 import { ResolvingMetadata } from "next";
 import { cookies, headers } from "next/headers";
 
-export interface PageProps {
-  params: Promise<{ id: string }>
-}
-
 export async function generateMetadata(
-  { params }: PageProps,
+  { params }: any,
   parent: ResolvingMetadata
 ) {
-  const { id } = await params;
+  const { id } = params;
   const headersList = await headers();
   const kb_id = headersList.get('x-kb-id') || process.env.DEV_KB_ID || '';
   const cookieStore = await cookies()
@@ -33,8 +29,8 @@ async function getNodeDetail(id: string, kb_id: string, authToken: string) {
   return result.data;
 }
 
-const DocPage = async ({ params }: PageProps) => {
-  const { id = '' } = await params
+const DocPage = async ({ params }: any) => {
+  const { id = '' } = params
 
   const headersList = await headers()
   const cookieStore = await cookies()

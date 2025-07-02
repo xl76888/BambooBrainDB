@@ -59,6 +59,22 @@ func (h *RAGMQHandler) HandleNodeContentVectorRequest(ctx context.Context, msg t
 			h.logger.Error("get kb failed", log.Error(err), log.String("kb_id", request.KBID))
 			return nil
 		}
+		// 如果该知识库尚未创建向量数据集，先自动创建并保存
+		if kb.DatasetID == "" {
+			newDatasetID, err := h.rag.CreateKnowledgeBase(ctx)
+			if err != nil {
+				h.logger.Error("create rag dataset failed", log.Error(err))
+				return nil
+			}
+			// 更新数据库记录，保证后续请求直接使用
+			if err := h.kbRepo.UpdateDatasetID(ctx, kb.ID, newDatasetID); err != nil {
+				h.logger.Error("update kb dataset_id failed", log.Error(err))
+				return nil
+			}
+			kb.DatasetID = newDatasetID
+			h.logger.Info("auto created rag dataset for kb", log.String("kb_id", kb.ID), log.String("dataset_id", newDatasetID))
+		}
+
 		// upsert node content chunks
 		docID, err := h.rag.UpsertRecords(ctx, kb.DatasetID, nodeRelease)
 		if err != nil {
@@ -114,10 +130,12 @@ func (h *RAGMQHandler) HandleNodeContentVectorRequest(ctx context.Context, msg t
 			h.logger.Error("get chat model failed", log.Error(err))
 			return nil
 		}
-		summary, err := h.llmUsecase.SummaryNode(ctx, model, node.Name, node.Content)
+		// 提取纯文本，避免脚本样式进入摘要
+		plain := usecase.StripHTMLPublic(node.Content)
+		summary, err := h.llmUsecase.SummaryNode(ctx, model, node.Name, plain)
 		if err != nil {
-			h.logger.Error("summary node content failed", log.Error(err))
-			return nil
+			h.logger.Warn("LLM summary failed, use fallback", log.Error(err))
+			summary = usecase.FallbackSummaryLocalPublic(node.Content)
 		}
 		if err := h.nodeRepo.UpdateNodeSummary(ctx, request.KBID, request.NodeID, summary); err != nil {
 			h.logger.Error("update node summary failed", log.Error(err))

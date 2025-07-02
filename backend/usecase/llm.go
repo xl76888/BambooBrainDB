@@ -70,26 +70,12 @@ func (u *LLMUsecase) GetChatModel(ctx context.Context, model *domain.Model) (mod
 			config.HTTPClient = client
 		}
 	}
-	switch model.Provider {
-	case domain.ModelProviderBrandDeepSeek:
-		config := &deepseek.ChatModelConfig{
-			BaseURL:     model.BaseURL,
-			APIKey:      model.APIKey,
-			Model:       string(model.Model),
-			Temperature: temprature,
-		}
-		chatModel, err := deepseek.NewChatModel(ctx, config)
-		if err != nil {
-			return nil, fmt.Errorf("create chat model failed: %w", err)
-		}
-		return chatModel, nil
-	default:
-		chatModel, err := openai.NewChatModel(ctx, config)
-		if err != nil {
-			return nil, fmt.Errorf("create chat model failed: %w", err)
-		}
-		return chatModel, nil
+	// DeepSeek API 与 OpenAI 兼容，这里直接走 OpenAI 客户端可避免 deepseek SDK 偶发 EOF 问题
+	chatModel, err := openai.NewChatModel(ctx, config)
+	if err != nil {
+		return nil, fmt.Errorf("create chat model failed: %w", err)
 	}
+	return chatModel, nil
 }
 
 func (u *LLMUsecase) FormatConversationMessages(

@@ -1,0 +1,28 @@
+# 使用python镜像，然后安装node
+FROM python:3.9-slim
+
+# 安装curl和node.js
+RUN apt-get update && apt-get install -y \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# 复制standalone构建结果
+COPY dist/standalone ./
+COPY dist/static ./dist/static
+
+# 设置环境变量
+ENV NODE_ENV=production
+ENV PORT=3010
+ENV HOSTNAME=0.0.0.0
+ENV NEXT_PUBLIC_API_URL=http://panda-wiki-backend:8000
+
+# 暴露端口
+EXPOSE 3010
+
+# 启动应用
+CMD ["node", "server.js"] 

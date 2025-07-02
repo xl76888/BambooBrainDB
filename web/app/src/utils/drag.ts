@@ -1,10 +1,19 @@
 import { ITreeItem, NodeListItem } from "@/assets/type";
 
 export function convertToTree(data: NodeListItem[]) {
+  // 首先去重数据，避免构建树时出现问题
+  const deduplicatedData = data.filter((item, index, array) => {
+    const firstIndex = array.findIndex(obj => obj.id === item.id);
+    if (firstIndex !== index) {
+      console.warn(`🔧 convertToTree发现重复节点ID: ${item.id}, 已去重`);
+    }
+    return firstIndex === index;
+  });
+
   const map: { [key: string]: ITreeItem } = {};
   const tree: ITreeItem[] = [];
 
-  data.forEach(item => {
+  deduplicatedData.forEach(item => {
     map[item.id] = {
       id: item.id,
       name: item.name,
@@ -17,7 +26,7 @@ export function convertToTree(data: NodeListItem[]) {
     };
   });
 
-  data.forEach(item => {
+  deduplicatedData.forEach(item => {
     const node = map[item.id];
     if (node.parentId && map[node.parentId]) {
       node.level = (map[node.parentId].level || 0) + 1;
@@ -36,7 +45,28 @@ export function convertToTree(data: NodeListItem[]) {
 
   tree.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-  return tree;
+  // === 新增：按分类拆分顶层节点 ===
+  const categoryMap: { [cat: string]: ITreeItem } = {};
+  const groupedTree: ITreeItem[] = [];
+
+  tree.forEach(node => {
+    const cat = (data.find(d => d.id === node.id)?.category) || '未分类';
+    if (!categoryMap[cat]) {
+      categoryMap[cat] = {
+        id: `cat-${cat}`,
+        name: cat,
+        level: 0,
+        type: 1, // 视作文件夹
+        order: 0,
+        children: [],
+      } as ITreeItem;
+      groupedTree.push(categoryMap[cat]);
+    }
+    node.level += 1; // 在分类下层级+1
+    categoryMap[cat].children!.push(node);
+  });
+
+  return groupedTree;
 }
 
 export const filterEmptyFolders = (data: ITreeItem[]): ITreeItem[] => {

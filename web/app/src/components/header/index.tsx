@@ -1,10 +1,9 @@
 'use client'
 
-import Logo from '@/assets/images/logo.png';
 import { IconSearch } from "@/components/icons";
 import { useStore } from "@/provider";
 import { Box, Button, IconButton, Stack, TextField } from "@mui/material";
-import Image from "next/image";
+import SafeImage from "@/components/SafeImage";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from 'react';
@@ -14,8 +13,9 @@ const Header = () => {
   const router = useRouter();
   const pathname = usePathname();
   const { mobile = false, kbDetail, catalogShow } = useStore()
+  const siteTitle = kbDetail?.settings?.title || kbDetail?.settings?.welcome_str || 'Panda-Wiki'
   const [searchValue, setSearchValue] = useState('');
-
+  
   const catalogSetting = kbDetail?.settings?.catalog_settings
 
   const handleSearch = () => {
@@ -51,9 +51,15 @@ const Header = () => {
   }}>
     <Link href={'/'}>
       <Stack direction='row' alignItems='center' gap={1.5} sx={{ py: '20px', cursor: 'pointer', color: 'text.primary', '&:hover': { color: 'primary.main' } }} >
-        {kbDetail?.settings?.icon ? <img src={kbDetail?.settings?.icon} alt='logo' width={32} height={32} />
-          : <Image src={Logo.src} width={32} height={32} alt='logo' />}
-        <Box sx={{ fontSize: 18 }}>{kbDetail?.settings?.title}</Box>
+        <SafeImage 
+          src={kbDetail?.settings?.icon || '/logo.png'} 
+          alt='logo' 
+          width={32} 
+          height={32}
+          style={{ objectFit: 'contain' }}
+          priority
+        />
+        <Box sx={{ fontSize: 18 }}>{siteTitle}</Box>
       </Stack>
     </Link>
     <Stack direction="row" alignItems="center" gap={2}>
@@ -103,7 +109,14 @@ const Header = () => {
         <Link key={index} href={item.url} target={item.target}>
           <Button
             variant={item.variant}
-            startIcon={item.showIcon && item.icon ? <img src={item.icon} alt='logo' width={24} height={24} /> : null}
+            startIcon={item.showIcon && item.icon ? (
+              <SafeImage 
+                src={item.icon} 
+                alt='icon' 
+                width={24} 
+                height={24}
+              />
+            ) : null}
             sx={{ textTransform: 'none' }}
           >
             <Box sx={{ lineHeight: '24px' }}>{item.text}</Box>

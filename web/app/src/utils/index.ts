@@ -98,6 +98,31 @@ export function getOrigin(req: any) {
 }
 
 export const extractHeadings = (html: string) => {
+  // 检查是否在浏览器环境中
+  if (typeof window === 'undefined' || typeof DOMParser === 'undefined') {
+    // 服务端渲染时的简单解析，使用正则表达式
+    const headingRegex = /<h([1-6])[^>]*id=['"]?([^'">\s]*)[^>]*>([^<]*)<\/h[1-6]>/gi;
+    const headings = [];
+    let match;
+    
+    while ((match = headingRegex.exec(html)) !== null) {
+      const level = parseInt(match[1]);
+      const id = match[2] || Math.random().toString(36).substring(2, 15);
+      const title = match[3].trim();
+      
+      if (title) {
+        headings.push({
+          title,
+          heading: level as 1 | 2 | 3 | 4 | 5 | 6,
+          id
+        });
+      }
+    }
+    
+    return headings;
+  }
+
+  // 浏览器环境中的原始实现
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
   const headings = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');

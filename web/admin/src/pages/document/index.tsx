@@ -7,7 +7,7 @@ import { useURLSearchParams } from "@/hooks"
 import { useAppSelector } from "@/store"
 import { addOpacityToColor } from "@/utils"
 import { Box, Button, Checkbox, IconButton, Stack, useTheme } from "@mui/material"
-import { Icon, MenuSelect } from "ct-mui"
+import { Icon, MenuSelect, Message } from "ct-mui"
 import { useCallback, useEffect, useState } from "react"
 import VersionPublish from "../release/components/VersionPublish"
 import DocAdd from "./component/DocAdd"
@@ -17,6 +17,7 @@ import DocSearch from "./component/DocSearch"
 import DocStatus from "./component/DocStatus"
 import DocSummary from "./component/DocSummary"
 import Summary from "./component/Summary"
+import request from '@/api/request'
 
 const Content = () => {
   const { kb_id } = useAppSelector(state => state.config)
@@ -67,6 +68,21 @@ const Content = () => {
   const handlePublish = (item: ITreeItem) => {
     setPublishOpen(true)
     setPublishIds([item.id])
+  }
+
+  const handleAutoClassify = async () => {
+    if (!kb_id) {
+      Message.error('知识库ID未找到，请刷新页面重试')
+      return
+    }
+    
+    try {
+      await request.post('/api/v1/node/auto-classify', { kb_id })
+      Message.success('已触发 AI 自动分类，请稍后刷新')
+      getData()
+    } catch (e:any) {
+      Message.error(`自动分类失败: ${e?.response?.data?.message || e?.message || '未知错误'}`)
+    }
   }
 
   const menu = (opra: TreeMenuOptions): TreeMenuItem[] => {
@@ -164,6 +180,12 @@ const Content = () => {
                   onClick={() => setBatchOpen(true)}
                 >
                   批量操作
+                </Stack>
+              },
+              {
+                key: 'auto-classify',
+                label: <Stack direction={'row'} alignItems={'center'} gap={1} sx={{ fontSize: 14, px: 2, lineHeight: '40px', height: 40, width: 180, borderRadius: '5px', cursor: 'pointer', ':hover': { bgcolor: addOpacityToColor(theme.palette.primary.main, 0.1) } }} onClick={handleAutoClassify}>
+                  AI 自动分类
                 </Stack>
               },
             ]}

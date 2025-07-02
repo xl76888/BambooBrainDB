@@ -43,6 +43,9 @@ func NewNodeHandler(
 
 	group.GET("/recommend_nodes", h.RecommendNodes)
 
+	// AI 自动分类
+	group.POST("/auto-classify", h.AutoClassify)
+
 	return h
 }
 
@@ -221,7 +224,7 @@ func (h *NodeHandler) SummaryNode(c echo.Context) error {
 	summary, err := h.usecase.SummaryNode(ctx, req)
 	if err != nil {
 		if err == domain.ErrModelNotConfigured {
-			return h.NewResponseWithError(c, "请前往管理后台，点击右上角的“系统设置”配置推理大模型。", err)
+			return h.NewResponseWithError(c, "请前往管理后台，点击右上角的系统设置配置推理大模型。", err)
 		}
 		return h.NewResponseWithError(c, "summary node failed", err)
 	}
@@ -254,4 +257,28 @@ func (h *NodeHandler) RecommendNodes(c echo.Context) error {
 		return h.NewResponseWithError(c, "get recommend nodes failed", err)
 	}
 	return h.NewResponseWithData(c, nodes)
+}
+
+// AutoClassify
+// @Summary      AI 自动分类
+// @Description  批量为知识库节点生成分类
+// @Tags         node
+// @Accept       json
+// @Produce      json
+// @Param        body  body  domain.NodeAutoClassifyReq true "Params"
+// @Success      200   {object}  domain.Response
+// @Router       /api/v1/node/auto-classify [post]
+func (h *NodeHandler) AutoClassify(c echo.Context) error {
+	var req domain.NodeAutoClassifyReq
+	if err := c.Bind(&req); err != nil {
+		return h.NewResponseWithError(c, "invalid request", err)
+	}
+	if err := c.Validate(req); err != nil {
+		return h.NewResponseWithError(c, "validate request params failed", err)
+	}
+	ctx := c.Request().Context()
+	if err := h.usecase.AutoClassify(ctx, req.KBID); err != nil {
+		return h.NewResponseWithError(c, "auto classify failed", err)
+	}
+	return h.NewResponseWithData(c, nil)
 }

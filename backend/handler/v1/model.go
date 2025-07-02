@@ -33,6 +33,7 @@ func NewModelHandler(echo *echo.Echo, baseHandler *handler.BaseHandler, logger *
 	group.POST("", handler.CreateModel)
 	group.POST("/check", handler.CheckModel)
 	group.POST("/provider/supported", handler.GetProviderSupportedModelList)
+	group.POST("/activate", handler.ActivateModel)
 	group.PUT("", handler.UpdateModel)
 
 	return handler
@@ -192,4 +193,29 @@ func (h *ModelHandler) GetProviderSupportedModelList(c echo.Context) error {
 		return h.NewResponseWithError(c, "get user model list failed", err)
 	}
 	return h.NewResponseWithData(c, models)
+}
+
+// activate model
+//
+//	@Summary		activate model
+//	@Description	activate model
+//	@Tags			model
+//	@Accept			json
+//	@Produce		json
+//	@Param			model	body		domain.ActivateModelReq	true	"activate model request"
+//	@Success		200		{object}	domain.Response
+//	@Router			/api/v1/model/activate [post]
+func (h *ModelHandler) ActivateModel(c echo.Context) error {
+	var req domain.ActivateModelReq
+	if err := c.Bind(&req); err != nil {
+		return h.NewResponseWithError(c, "invalid request", err)
+	}
+	if err := c.Validate(&req); err != nil {
+		return h.NewResponseWithError(c, "invalid request", err)
+	}
+	ctx := c.Request().Context()
+	if err := h.usecase.ActivateModel(ctx, req.ModelID); err != nil {
+		return h.NewResponseWithError(c, "activate model failed", err)
+	}
+	return h.NewResponseWithData(c, nil)
 }

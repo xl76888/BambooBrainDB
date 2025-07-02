@@ -282,6 +282,13 @@ func (r *KnowledgeBaseRepository) SyncKBAccessSettingsToCaddy(ctx context.Contex
 }
 
 func (r *KnowledgeBaseRepository) CreateKnowledgeBase(ctx context.Context, kb *domain.KnowledgeBase) error {
+	// 先为新知识库创建向量检索数据集
+	datasetID, err := r.rag.CreateKnowledgeBase(ctx)
+	if err != nil {
+		return fmt.Errorf("create rag dataset failed: %w", err)
+	}
+	kb.DatasetID = datasetID
+
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(kb).Error; err != nil {
 			return err

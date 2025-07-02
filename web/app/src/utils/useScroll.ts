@@ -22,13 +22,18 @@ const useScroll = (headings: Heading[]) => {
   }
 
   const scrollToElement = useCallback((elementId: string, offset = 80) => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    
     const element = document.getElementById(elementId)
     if (element) {
       const targetHeading = headings.find(h => h.id === elementId)
       if (targetHeading) {
         isManualScroll.current = true
         setActiveHeading(targetHeading)
-        location.hash = encodeURIComponent(targetHeading.title)
+        
+        if (typeof location !== 'undefined') {
+          location.hash = encodeURIComponent(targetHeading.title)
+        }
 
         const elementPosition = element.getBoundingClientRect().top
         const offsetPosition = elementPosition + window.scrollY - offset
@@ -46,6 +51,8 @@ const useScroll = (headings: Heading[]) => {
   }, [headings])
 
   const findActiveHeading = useCallback(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return null;
+    
     const levels = Array.from(new Set(headings.map(it => it.heading).sort((a, b) => a - b))).slice(0, 3)
     const visibleHeadings = headings.filter(header => levels.includes(header.heading))
 
@@ -86,6 +93,8 @@ const useScroll = (headings: Heading[]) => {
   )
 
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    
     if (isFirstLoad.current && headings.length > 0) {
       const hash = decodeURIComponent(location.hash).slice(1)
       if (hash) {
@@ -122,7 +131,8 @@ const useScroll = (headings: Heading[]) => {
   }, [headings, findActiveHeading])
 
   useEffect(() => {
-    if (headings.length === 0) return
+    if (typeof window === 'undefined' || headings.length === 0) return;
+    
     window.addEventListener('scroll', debouncedScrollHandler)
     debouncedScrollHandler()
     return () => {

@@ -1,12 +1,19 @@
-import { RecommendNode } from "@/assets/type";
+import { RecommendNode, NodeListItem } from "@/assets/type";
 import { IconFile, IconFolder } from "@/components/icons";
 import { useStore } from "@/provider";
 import { Box, Stack } from "@mui/material";
 import { Ellipsis } from "ct-mui";
 import Link from "next/link";
 
-const NodeFolder = ({ node }: { node: RecommendNode }) => {
-  const children = node.recommend_nodes?.sort((a, b) => (a.position ?? 0) - (b.position ?? 0)) || []
+type NodeCardProps = {
+  node: RecommendNode | NodeListItem;
+}
+
+const NodeFolder = ({ node }: NodeCardProps) => {
+  const children = ('recommend_nodes' in node && node.recommend_nodes) 
+    ? node.recommend_nodes.sort((a, b) => (a.position ?? 0) - (b.position ?? 0)) 
+    : []
+  
   return <Stack direction="column" justifyContent="space-between" sx={{ cursor: 'pointer', height: '100%' }}>
     <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2, flexShrink: 0 }}>
       {node.emoji ? <Box sx={{ flexShrink: 0, fontSize: 14 }}>{node.emoji}</Box> : <IconFolder sx={{ flexShrink: 0 }} />}
@@ -40,7 +47,7 @@ const NodeFolder = ({ node }: { node: RecommendNode }) => {
   </Stack>
 }
 
-const NodeFile = ({ node }: { node: RecommendNode }) => {
+const NodeFile = ({ node }: NodeCardProps) => {
   return <Link href={`/node/${node.id}`}>
     <Stack direction="column" justifyContent="space-between" sx={{ cursor: 'pointer', height: '100%' }}>
       <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2, flexShrink: 0 }}>
@@ -64,14 +71,22 @@ const NodeFile = ({ node }: { node: RecommendNode }) => {
   </Link>
 }
 
-const DocCard = ({ node }: { node: RecommendNode }) => {
+const DocCard = ({ node }: NodeCardProps) => {
   const { themeMode = 'light', mobile = false } = useStore()
   return <Box sx={{
     border: `1px solid`,
     borderColor: 'divider',
     borderRadius: '10px',
     padding: '24px',
-    width: mobile ? 'calc(100% - 48px)' : 'calc((100% - 32px) / 3)',
+    width: mobile ? '100%' : {
+      xs: '100%',
+      sm: 'calc(50% - 8px)',
+      md: 'calc(33.333% - 11px)',
+      lg: 'calc(25% - 12px)'
+    },
+    minWidth: mobile ? 'auto' : '280px',
+    maxWidth: mobile ? 'none' : '400px',
+    flexShrink: 0,
     transition: 'all 0.3s ease',
     color: 'text.primary',
     bgcolor: themeMode === 'dark' ? 'background.paper' : 'background.default',

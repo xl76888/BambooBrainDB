@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 
@@ -18,29 +19,46 @@ import (
 )
 
 type CTRAG struct {
-	client *rag.Client
-	logger *log.Logger
+	client  *rag.Client
+	logger  *log.Logger
+	baseURL string
+	apiKey  string
 }
 
-func NewCTRAG(config *config.Config, logger *log.Logger) (*CTRAG, error) {
+func NewCTRAG(cfg *config.Config, logger *log.Logger) (*CTRAG, error) {
 	client := rag.New(
-		config.RAG.CTRAG.BaseURL,
-		config.RAG.CTRAG.APIKey,
+		cfg.RAG.CTRAG.BaseURL,
+		cfg.RAG.CTRAG.APIKey,
 	)
 	return &CTRAG{
-		client: client,
-		logger: logger.WithModule("store.vector.ct"),
+		client:  client,
+		logger:  logger.WithModule("store.vector.ct"),
+		baseURL: cfg.RAG.CTRAG.BaseURL,
+		apiKey:  cfg.RAG.CTRAG.APIKey,
 	}, nil
 }
 
 func (s *CTRAG) CreateKnowledgeBase(ctx context.Context) (string, error) {
-	dataset, err := s.client.CreateDataset(ctx, rag.CreateDatasetRequest{
-		Name: uuid.New().String(),
-	})
-	if err != nil {
-		return "", err
+	name := uuid.New().String()
+	dataset, err := s.client.CreateDataset(ctx, rag.CreateDatasetRequest{Name: name})
+	if err == nil && dataset != nil && dataset.ID != "" {
+		return dataset.ID, nil
 	}
-	return dataset.ID, nil
+
+	// 若第一次返回的 ID 为空，自行调用原生 API 查询
+	reqURL := fmt.Sprintf("%s/datasets?name=%s", strings.TrimRight(s.baseURL, "/"), name)
+	httpReq, _ := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+	httpReq.Header.Set("Authorization", "Bearer "+s.apiKey)
+	resp, err2 := http.DefaultClient.Do(httpReq)
+	if err2 == nil && resp != nil {
+		defer resp.Body.Close()
+		var list []rag.Dataset
+		if errJson := json.NewDecoder(resp.Body).Decode(&list); errJson == nil && len(list) > 0 {
+			return list[0].ID, nil
+		}
+	}
+
+	return "", fmt.Errorf("create dataset failed: %v, list fallback empty", err)
 }
 
 func (s *CTRAG) QueryRecords(ctx context.Context, datasetIDs []string, query string) ([]*domain.NodeContentChunk, error) {

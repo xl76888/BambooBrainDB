@@ -4,7 +4,7 @@ import { KBDetail, NodeListItem } from '@/assets/type';
 import { getAuthStatus } from '@/utils/auth';
 import { useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 
 interface StoreContextType {
   kbDetail?: KBDetail
@@ -50,10 +50,34 @@ export default function StoreProvider({
     defaultMatches: mobile,
   });
 
-  const fetchNodeList = async () => {
-    if (!kb_id) return;
+  const fetchingRef = useRef(false);
+  const lastFetchKbId = useRef<string | undefined>(undefined);
+  const initialDataLoaded = useRef(false);
 
+  const fetchNodeList = useCallback(async (force = false) => {
+    if (!kb_id) return;
+    
+    // 防止重复调用
+    if (fetchingRef.current && !force) return;
+    
+    // 如果有初始数据且不是强制刷新，跳过
+    if (!force && initialNodeList && initialNodeList.length > 0 && !initialDataLoaded.current) {
+      // 添加去重逻辑
+      const uniqueNodes = deduplicateNodes(initialNodeList);
+      setNodeList(uniqueNodes);
+      lastFetchKbId.current = kb_id;
+      initialDataLoaded.current = true;
+      return;
+    }
+    
+    // 如果已经有数据且不是强制刷新，跳过
+    if (!force && nodeList && nodeList.length > 0 && lastFetchKbId.current === kb_id) {
+      return;
+    }
+
+    fetchingRef.current = true;
     setLoading(true);
+    
     try {
       const cookies = document.cookie.split(';');
       const authCookie = cookies.find(cookie =>
@@ -66,40 +90,68 @@ export default function StoreProvider({
         headers: {
           'Content-Type': 'application/json',
           'x-kb-id': kb_id,
-          'X-Simple-Auth-Password': authToken,
+          ...(authToken ? { 'X-Simple-Auth-Password': authToken } : {}),
         }
       });
 
       if (response.ok) {
         const result = await response.json();
+        
         if (result.data) {
-          setNodeList(result.data);
-        } else {
-          console.error('API 返回数据格式错误:', result);
+          // 添加去重逻辑
+          const uniqueNodes = deduplicateNodes(result.data);
+          setNodeList(uniqueNodes);
+          lastFetchKbId.current = kb_id;
         }
-      } else {
-        console.error('获取节点列表失败:', response.status, response.statusText);
       }
     } catch (error) {
-      console.error('获取节点列表失败:', error);
+      console.error('Error fetching node list:', error);
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
     }
+  }, [kb_id, nodeList, initialNodeList]);
+
+  // 添加去重函数
+  const deduplicateNodes = (nodes: NodeListItem[]): NodeListItem[] => {
+    const seen = new Set<string>();
+    return nodes.filter(node => {
+      if (seen.has(node.id)) {
+        console.warn(`🔧 发现重复节点ID: ${node.id}, 已自动去重`);
+        return false;
+      }
+      seen.add(node.id);
+      return true;
+    });
   };
 
   const refreshNodeList = async () => {
-    await fetchNodeList();
+    await fetchNodeList(true); // 强制刷新
   };
 
   useEffect(() => {
     setCatalogShow(catalogSettings?.catalog_visible !== 2);
-  }, [kbDetail]);
+  }, [catalogSettings]);
 
   useEffect(() => {
-    if (!initialNodeList && kb_id && getAuthStatus(kb_id)) {
+    // 如果有初始数据，直接使用
+    if (initialNodeList && initialNodeList.length > 0 && !initialDataLoaded.current) {
+      setNodeList(initialNodeList);
+      lastFetchKbId.current = kb_id;
+      initialDataLoaded.current = true;
+      return;
+    }
+    
+    // 只有在没有初始数据或 kb_id 变化时才获取
+    if (kb_id && (lastFetchKbId.current !== kb_id || (!nodeList && !initialNodeList))) {
+      if (lastFetchKbId.current !== kb_id) {
+        // kb_id 变化时，清空nodeList并重新获取
+        setNodeList(undefined);
+        initialDataLoaded.current = false;
+      }
       fetchNodeList();
     }
-  }, [kb_id, initialNodeList]);
+  }, [kb_id, fetchNodeList, initialNodeList, nodeList]);
 
   return <StoreContext.Provider
     value={{

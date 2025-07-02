@@ -1,88 +1,76 @@
 import { KBDetail } from "@/assets/type";
-import { Box, Button, IconButton, Stack } from "@mui/material";
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { IconClose, IconMore } from "../icons";
+import SafeImage from "@/components/SafeImage";
+import { Box, Button, Divider, Menu, MenuItem, Stack } from "@mui/material";
+import { IconMore } from "../icons";
+import { Fragment, useState } from "react";
 
-const NavBtns = ({ detail }: { detail?: KBDetail }) => {
-  const [open, setOpen] = useState(false)
+type NavBtnsProps = {
+  detail?: KBDetail | null
+}
 
-  useEffect(() => {
-    if (open) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [open])
+const NavBtns = ({ detail }: NavBtnsProps) => {
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const open = Boolean(anchorEl);
+
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  const btns = detail?.settings?.btns || []
+
+  if (btns.length === 0) return null
 
   return <>
-    <IconButton size='small' onClick={() => setOpen(!open)} sx={{
-      color: 'text.primary',
-      width: 40,
-      height: 40,
-    }}>
+    <Button
+      id="nav-btns-button"
+      aria-controls={open ? 'nav-btns-menu' : undefined}
+      aria-haspopup="true"
+      aria-expanded={open ? 'true' : undefined}
+      onClick={handleClick}
+      sx={{ minWidth: 'auto', p: 1 }}
+    >
       <IconMore />
-    </IconButton>
-    <Box sx={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      zIndex: 1,
-      transition: 'all 0.3s ease-in-out',
-      transform: 'translateX(100vw) translateY(-100vh)',
-      ...(open && {
-        bgcolor: 'background.default',
-        transform: 'translateX(0) translateY(0)',
-      }),
-    }}>
-      <Link href={'/'}>
-        <Stack direction='row' alignItems='center' gap={1.5} sx={{ py: '14px', cursor: 'pointer', ml: 3 }} >
-          {detail?.settings?.icon && <img src={detail?.settings?.icon} alt='logo' width={32} height={32} />}
-          <Box sx={{ fontSize: 18 }}>{detail?.settings?.title}</Box>
-        </Stack>
-      </Link>
-      <Stack gap={4} sx={{ px: 3, mt: 4 }}>
-        {detail?.settings?.btns?.map((item, index) => (
-          <Link key={index} href={item.url} target={item.target}>
-            <Button
-              fullWidth
-              variant={item.variant}
-              startIcon={item.showIcon && item.icon ? <img src={item.icon} alt='logo' width={36} height={36} /> : null}
-              sx={{
-                textTransform: 'none',
-                justifyContent: 'flex-start',
-                height: '60px',
-                px: 4,
-                gap: 3,
-                fontSize: 18,
-                '& .MuiButton-startIcon': {
-                  ml: 0,
-                  mr: 0,
-                },
-              }}
-            >
-              {item.text}
-            </Button>
-          </Link>
-        ))}
-      </Stack>
-      <IconButton size='small' onClick={() => setOpen(!open)} sx={{
-        position: 'absolute',
-        top: 10,
-        right: 10,
-        color: 'text.primary',
-        width: 40,
-        height: 40,
-        zIndex: 1,
-      }}>
-        <IconClose />
-      </IconButton>
-    </Box>
+    </Button>
+    <Menu
+      id="nav-btns-menu"
+      anchorEl={anchorEl}
+      open={open}
+      onClose={handleClose}
+      MenuListProps={{
+        'aria-labelledby': 'nav-btns-button',
+      }}
+      anchorOrigin={{
+        vertical: 'bottom',
+        horizontal: 'right',
+      }}
+      transformOrigin={{
+        vertical: 'top',
+        horizontal: 'right',
+      }}
+    >
+      {btns.map((item, index) => <Fragment key={index}>
+        <MenuItem onClick={handleClose} sx={{ py: 1 }}>
+          <a href={item.url} target={item.target} style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
+            <Stack direction="row" alignItems="center" gap={1.5}>
+              {item.showIcon && item.icon && (
+                <SafeImage 
+                  src={item.icon} 
+                  alt='icon' 
+                  width={20} 
+                  height={20}
+                />
+              )}
+              <Box>{item.text}</Box>
+            </Stack>
+          </a>
+        </MenuItem>
+        {index < btns.length - 1 && <Divider />}
+      </Fragment>)}
+    </Menu>
   </>
 }
 

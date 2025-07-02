@@ -3,9 +3,9 @@
  * @param kb_id 知识库ID
  * @returns 是否已认证
  */
-export function getAuthStatus(kb_id: string): boolean {
+export function getAuthStatus(kb_id: string): string | null {
   if (typeof window === 'undefined') {
-    return false; // 服务器端返回false
+    return null;
   }
 
   const cookies = document.cookie.split(';');
@@ -13,16 +13,16 @@ export function getAuthStatus(kb_id: string): boolean {
     cookie.trim().startsWith(`auth_${kb_id}=`)
   );
 
-  return authCookie?.split('=')[1] === 'true';
+  return authCookie ? authCookie.split('=')[1] : null;
 }
 
 /**
  * 设置认证状态
  * @param kb_id 知识库ID
- * @param authenticated 认证口令
+ * @param token 认证口令
  * @param days 过期天数，默认7天
  */
-export function setAuthStatus(kb_id: string, password: string, days: number = 7): void {
+export function setAuthStatus(kb_id: string, token: string, days: number = 7): void {
   if (typeof window === 'undefined') {
     return;
   }
@@ -30,8 +30,7 @@ export function setAuthStatus(kb_id: string, password: string, days: number = 7)
   const expires = new Date();
   expires.setDate(expires.getDate() + days);
 
-  const cookieValue = password
-  document.cookie = `auth_${kb_id}=${cookieValue}; expires=${expires.toUTCString()}; path=/`;
+  document.cookie = `auth_${kb_id}=${token}; expires=${expires.toUTCString()}; path=/`;
 }
 
 /**

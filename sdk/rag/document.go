@@ -74,11 +74,27 @@ func (c *Client) UploadDocuments(ctx context.Context, datasetID string, filePath
 		return nil, parseErrorResponse(resp)
 	}
 
-	var result UploadDocumentResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	// 兼容两种格式：
+	// 1. {"code":0,"data":[{...}]}
+	// 2. [{...}]
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
 		return nil, err
 	}
-	return result.Data, nil
+
+	// 尝试格式1
+	var wrapper UploadDocumentResponse
+	if err := json.Unmarshal(bodyBytes, &wrapper); err == nil && len(wrapper.Data) > 0 {
+		return wrapper.Data, nil
+	}
+
+	// 尝试格式2
+	var docs []Document
+	if err := json.Unmarshal(bodyBytes, &docs); err == nil && len(docs) > 0 {
+		return docs, nil
+	}
+
+	return nil, fmt.Errorf("unexpected upload documents response: %s", string(bodyBytes))
 }
 
 // DownloadDocument 下载文档到本地
@@ -257,11 +273,23 @@ func (c *Client) UploadDocumentText(ctx context.Context, datasetID string, jsonS
 		return nil, fmt.Errorf("上传失败: %s, 状态码: %d, 响应: %s", parseErrorResponse(resp), resp.StatusCode, string(body))
 	}
 
-	var result UploadDocumentResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, err
+	// 兼容两种格式：
+	// 1. {"code":0,"data":[{...}]}
+	// 2. [{...}]
+	var wrapper UploadDocumentResponse
+	if err := json.NewDecoder(resp.Body).Decode(&wrapper); err == nil && len(wrapper.Data) > 0 {
+		return wrapper.Data, nil
 	}
-	return result.Data, nil
+
+	// 如果 wrapper.Data 为空，尝试直接解析为数组
+	if _, err := resp.Body.Seek(0, io.SeekStart); err == nil { // 重置游标
+		var docs []Document
+		if err := json.NewDecoder(resp.Body).Decode(&docs); err == nil && len(docs) > 0 {
+			return docs, nil
+		}
+	}
+
+	return nil, fmt.Errorf("unexpected upload documents response")
 }
 
 // UploadDocumentTextAndParse 上传文本内容为文档并解析

@@ -110,6 +110,7 @@ func createApp() (*App, error) {
 	crawlerHandler := v1.NewCrawlerHandler(echo, baseHandler, authMiddleware, logger, configConfig, crawlerUsecase, notionUseCase, epubUsecase)
 	creationUsecase := usecase.NewCreationUsecase(logger, llmUsecase, modelUsecase)
 	creationHandler := v1.NewCreationHandler(echo, baseHandler, logger, creationUsecase)
+	contentHandler := v1.NewContentHandler(baseHandler, echo, llmUsecase, modelUsecase, logger)
 	apiHandlers := &v1.APIHandlers{
 		UserHandler:          userHandler,
 		KnowledgeBaseHandler: knowledgeBaseHandler,
@@ -120,6 +121,7 @@ func createApp() (*App, error) {
 		ConversationHandler:  conversationHandler,
 		CrawlerHandler:       crawlerHandler,
 		CreationHandler:      creationHandler,
+		ContentHandler:       contentHandler,
 	}
 	shareNodeHandler := share.NewShareNodeHandler(baseHandler, echo, nodeUsecase, logger)
 	shareAppHandler := share.NewShareAppHandler(echo, baseHandler, logger, appUsecase)

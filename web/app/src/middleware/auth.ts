@@ -5,7 +5,7 @@ export async function middleware(request: NextRequest, kb_id: string, authToken:
 
   try {
     // 构建代理请求到后端API
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+    const apiBaseUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || '';
     const targetUrl = `${apiBaseUrl}${url.pathname}${url.search}`;
 
     // 复制请求头，添加认证信息
@@ -20,7 +20,9 @@ export async function middleware(request: NextRequest, kb_id: string, authToken:
 
     // 添加认证相关头信息
     proxyHeaders.set('x-kb-id', kb_id);
-    proxyHeaders.set('X-Simple-Auth-Password', authToken);
+    if (authToken) {
+      proxyHeaders.set('X-Simple-Auth-Password', authToken);
+    }
 
     // 构建代理请求选项
     const proxyOptions: RequestInit = {

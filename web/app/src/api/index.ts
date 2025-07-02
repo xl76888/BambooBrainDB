@@ -12,6 +12,37 @@ interface ApiClientConfig {
   cache?: RequestCache;
 }
 
+// 内容分析相关接口类型
+interface ContentAnalysisRequest {
+  content: string;
+}
+
+interface OutlineItem {
+  level: number;
+  title: string;
+  anchor: string;
+}
+
+interface ContentAnalysisResponse {
+  summary: string;
+  key_points: string[];
+  tags: string[];
+  difficulty: 'easy' | 'medium' | 'hard';
+  outline: OutlineItem[];
+  processed_by?: string; // AI 或 Local
+  word_count?: number;
+  reading_time?: number;
+}
+
+interface ContentEnhanceRequest {
+  content: string;
+  style?: 'professional' | 'casual' | 'technical';
+}
+
+interface ContentEnhanceResponse {
+  enhanced_content: string;
+}
+
 class ApiClient {
   private baseURL: string;
 
@@ -30,6 +61,40 @@ class ApiClient {
     };
   }
 
+  // 客户端通用请求方法
+  async clientRequest<T>(
+    url: string,
+    options: RequestInit = {},
+    config: ApiClientConfig = {}
+  ): Promise<{ data?: T; status: number; error?: string }> {
+    const { kb_id = '', headers = {}, cache } = config;
+
+    const requestHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(kb_id && { 'x-kb-id': kb_id }),
+      ...headers,
+    };
+
+    const fullUrl = url.startsWith('http') ? url : `${this.baseURL}${url}`;
+    
+    try {
+      const response = await fetch(fullUrl, {
+        ...options,
+        headers: requestHeaders,
+        ...(cache && { cache }),
+      });
+
+      if (!response.ok) {
+        return { status: response.status, error: `HTTP error! status: ${response.status}` };
+      }
+
+      const result = await response.json();
+      return { data: result.data || result, status: response.status };
+    } catch (error) {
+      return { status: 500, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
   // 服务端专用方法 - 带cookie的请求
   async serverRequest<T>(
     url: string,
@@ -45,7 +110,7 @@ class ApiClient {
       ...headers,
     };
     const fullUrl = url.startsWith('http') ? url : `${this.baseURL}${url}`;
-    console.log('🍎 request url >>>', fullUrl)
+    
     try {
       const response = await fetch(fullUrl, {
         ...options,
@@ -79,7 +144,8 @@ class ApiClient {
     authToken?: string,
     origin: string = ''
   ): Promise<{ data?: NodeListItem[]; status: number; error?: string }> {
-    return this.serverRequest(origin + `/share/v1/node/list`, {
+    const baseURL = (typeof window !== 'undefined' && origin) ? origin : (process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || '');
+    return this.serverRequest(baseURL + `/share/v1/node/list`, {
       method: 'GET',
     }, {
       kb_id,
@@ -89,13 +155,61 @@ class ApiClient {
 
   // 服务端获取节点详情
   async serverGetNodeDetail(id: string, kb_id: string, authToken?: string, origin: string = ''): Promise<{ data?: NodeDetail; status: number; error?: string }> {
-    return this.serverRequest(origin + `/share/v1/node/detail?id=${id}`, {
+    // 浏览器环境优先使用同源 origin，避免跨域；服务端仍用 BACKEND_URL
+    const baseURL = (typeof window !== 'undefined' && origin) ? origin : (process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || '');
+    return this.serverRequest(baseURL + `/share/v1/node/detail?id=${id}`, {
       method: 'GET',
     }, {
       kb_id,
       authToken,
     });
   }
+
+  // 内容分析API
+  async analyzeContent(request: ContentAnalysisRequest, kb_id?: string): Promise<{ data?: ContentAnalysisResponse; status: number; error?: string }> {
+    return this.clientRequest<ContentAnalysisResponse>('/api/v1/content/analyze', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }, {
+      kb_id,
+    });
+  }
+
+  // 内容增强API
+  async enhanceContent(request: ContentEnhanceRequest, kb_id?: string): Promise<{ data?: ContentEnhanceResponse; status: number; error?: string }> {
+    return this.clientRequest<ContentEnhanceResponse>('/api/v1/content/enhance', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }, {
+      kb_id,
+    });
+  }
 }
 
 export const apiClient = new ApiClient();
+
+// 导出类型以供其他模块使用
+export type { 
+  ContentAnalysisRequest,
+  ContentAnalysisResponse,
+  ContentEnhanceRequest,
+  ContentEnhanceResponse,
+  OutlineItem
+};
+
+export async function login(params: { password: string; kb_id: string }) {
+  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-kb-id': params.kb_id,
+    },
+    body: JSON.stringify({ password: params.password }),
+  });
+
+  if (!response.ok) {
+    throw new Error('登录失败');
+  }
+
+  return response.json();
+}

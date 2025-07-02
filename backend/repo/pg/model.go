@@ -90,6 +90,7 @@ func (r *ModelRepository) GetChatModel(ctx context.Context) (*domain.Model, erro
 	if err := r.db.WithContext(ctx).
 		Model(&domain.Model{}).
 		Where("type = ?", domain.ModelTypeChat).
+		Where("is_active = ?", true).
 		First(&model).Error; err != nil {
 		return nil, err
 	}
@@ -108,6 +109,33 @@ func (r *ModelRepository) UpdateUsage(ctx context.Context, modelID string, usage
 			}).Error; err != nil {
 			return err
 		}
+		return nil
+	})
+}
+
+// ActivateModel activates a model and deactivates others of the same type
+func (r *ModelRepository) ActivateModel(ctx context.Context, modelID string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// First get the model to know its type
+		var model domain.Model
+		if err := tx.Where("id = ?", modelID).First(&model).Error; err != nil {
+			return err
+		}
+
+		// Deactivate all models of the same type
+		if err := tx.Model(&domain.Model{}).
+			Where("type = ?", model.Type).
+			Update("is_active", false).Error; err != nil {
+			return err
+		}
+
+		// Activate the specified model
+		if err := tx.Model(&domain.Model{}).
+			Where("id = ?", modelID).
+			Update("is_active", true).Error; err != nil {
+			return err
+		}
+
 		return nil
 	})
 }

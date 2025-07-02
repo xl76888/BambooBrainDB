@@ -42,22 +42,25 @@ func NewMinioClient(config *config.Config) (*MinioClient, error) {
 		if err != nil {
 			return nil, fmt.Errorf("make bucket: %w", err)
 		}
-		err = minioClient.SetBucketPolicy(context.Background(), bucket, `{
-			"Version": "2012-10-17",
-			"Statement": [
-				{
-					"Action": ["s3:GetObject"],
-					"Effect": "Allow",
-					"Principal": "*",
-					"Resource": ["arn:aws:s3:::static-file/*"],
-					"Sid": "PublicRead"
-				}
-			]
-		}`)
-		if err != nil {
-			return nil, fmt.Errorf("set bucket policy: %w", err)
-		}
 	}
+	
+	// 强制设置bucket的公开读权限策略，确保静态文件可以被访问
+	err = minioClient.SetBucketPolicy(context.Background(), bucket, `{
+		"Version": "2012-10-17",
+		"Statement": [
+			{
+				"Action": ["s3:GetObject"],
+				"Effect": "Allow",
+				"Principal": "*",
+				"Resource": ["arn:aws:s3:::static-file/*"],
+				"Sid": "PublicRead"
+			}
+		]
+	}`)
+	if err != nil {
+		return nil, fmt.Errorf("set bucket policy: %w", err)
+	}
+	
 	return &MinioClient{Client: minioClient, config: config}, nil
 }
 

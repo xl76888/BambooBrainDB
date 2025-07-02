@@ -60,6 +60,7 @@ type Node struct {
 type NodeMeta struct {
 	Summary string `json:"summary"`
 	Emoji   string `json:"emoji"`
+	Category string `json:"category"`
 }
 
 func (d *NodeMeta) Value() (driver.Value, error) {
@@ -103,6 +104,7 @@ type NodeListItemResp struct {
 	ParentID   string         `json:"parent_id"`
 	CreatedAt  time.Time      `json:"created_at"`
 	UpdatedAt  time.Time      `json:"updated_at"`
+	Category   string         `json:"category"`
 }
 
 type NodeDetailResp struct {
@@ -190,6 +192,8 @@ type ShareNodeListItemResp struct {
 	ParentID string   `json:"parent_id"`
 	Position float64  `json:"position"`
 	Emoji    string   `json:"emoji"`
+	Summary  string   `json:"summary" gorm:"column:summary"`
+	Category string   `json:"category" gorm:"column:category"`
 }
 
 type MoveNodeReq struct {
@@ -202,6 +206,10 @@ type MoveNodeReq struct {
 type NodeSummaryReq struct {
 	IDs  []string `json:"ids" validate:"required"`
 	KBID string   `json:"kb_id" validate:"required"`
+}
+
+type NodeAutoClassifyReq struct {
+	KBID string `json:"kb_id" validate:"required"`
 }
 
 type GetRecommendNodeListReq struct {

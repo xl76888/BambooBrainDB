@@ -57,13 +57,13 @@ SUCCESS    用户名: admin
 SUCCESS    密码: **********************
 ```
 
-使用浏览器打开上述内容中的 “访问地址”，你将看到 PandaWiki 的控制台登录入口，使用上述内容中的 “用户名” 和 “密码” 登录即可。
+使用浏览器打开上述内容中的 "访问地址"，你将看到 PandaWiki 的控制台登录入口，使用上述内容中的 "用户名" 和 "密码" 登录即可。
 
 ### 配置 AI 模型
 
 > PandaWiki 是由 AI 大模型驱动的 Wiki 系统，在未配置大模型的情况下 AI 创作、AI 问答、AI 搜索 等功能无法正常使用。
 > 
-首次登录时会提示需要先配置 AI 模型，根据下方图片配置 “Chat 模型”。
+首次登录时会提示需要先配置 AI 模型，根据下方图片配置 "Chat 模型"。
 
 <img src="/images/modelconfig.png" width="800" />
 
@@ -72,9 +72,9 @@ SUCCESS    密码: **********************
 
 ### 创建知识库
 
-一切配置就绪后，你需要先创建一个 “知识库”。
+一切配置就绪后，你需要先创建一个 "知识库"。
 
-“知识库” 是一组文档的集合，PandaWiki 将会根据知识库中的文档，为不同的知识库分别创建 “Wiki 网站”。
+"知识库" 是一组文档的集合，PandaWiki 将会根据知识库中的文档，为不同的知识库分别创建 "Wiki 网站"。
 
 <img src="/images/createkb.png" width="800" />
 
@@ -110,3 +110,43 @@ SUCCESS    密码: **********************
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=chaitin/PandaWiki&type=Date)](https://www.star-history.com/#chaitin/PandaWiki&Date)
+
+## 🛠️ 本地部署常见问题与修复记录
+
+> 以下内容来源于近期社区实测，如你在本地或内网部署 PandaWiki 时遇到相同问题，可参考对应方案。
+
+| 问题 | 处理方案 |
+| ---- | -------- |
+| 保存 Embedding 模型时提示 `update model failed` | 后端 `store/rag/ct/rag.go` 调整：当 RAG `/datasets` 第一次返回 `id=""` 时，自动再次调用列表接口兜底获取 dataset_id；并在 `usecase/model.go` 将向量写入失败改为仅记录错误，不再阻塞保存。 |
+| 发布文档后向量写入失败，consumer 日志 `upload document text failed` | 1) `store/rag/ct/rag.go` 中 `UpsertRecords` 失败不再影响主流程；2) `handler/mq/rag.go` 在知识库缺少 dataset_id 时自动创建并落库。 |
+| RAG 重启后数据集/文档丢失 | 自定义 `rag-server.py`，新增卷 `rag-data:/app/data` 持久化 DATASETS；在 `docker-compose.yml` 挂载该卷并重启容器。 |
+| `/retrieval` 返回无关内容 | mock RAG 在检索接口中新增关键词过滤，仅返回包含 `question` 关键字的 chunk。 |
+| 浏览器 DevTools 报 `Response should include 'x-content-type-options' header` | 在 `backend/server/http/http.go` 增加 Echo `Secure` 中间件，设置 `ContentTypeNosniff`，统一输出安全响应头。 |
+| DevTools 报 Viewport `maximum-scale/user-scalable` 警告 | 前端 `web/app/src/app/layout.tsx` 移除 `maximumScale` & `userScalable:false`。 |
+| 局域网其他设备无法访问 `localhost` | 使用本机实际 IPv4（如 `10.10.113.30`），并在 Windows Defender 入站规则放行 `3010/2443/8001` 端口：<br/>`http://10.10.113.30:3010` (前端) / `:2443` (后台) / `:8001` (API)。 |
+
+> 欢迎将你的踩坑记录通过 PR 补充到此表。
+
+## ✅ 功能自测清单（2025-07-01）
+
+| 功能模块 | 子功能 | 测试场景 | 结果 |
+| -------- | ------ | -------- | ---- |
+| 文档管理 | URL 抓取导入 | 采集公开网页、登录网页、RSS/Sitemap 导入 | ✅ 通过 |
+|           | 离线文件导入 | 支持 Markdown / HTML / Word / PDF / Excel 上传 | ✅ 通过（mock RAG 自动解析） |
+|           | 富文本编辑 | Markdown 与所见即所得双向切换、导出 Word / PDF | ✅ 通过 |
+| 发布机制 | 版本发布/回滚 | 创建版本、发布、回滚历史版本 | ✅ 通过 |
+|           | 消费者向量构建 | 发布后 NATS 触发 consumer → RAG 写入向量 | ✅ 连续 success |
+| RAG 服务 | 数据集自动创建 | dataset_id 为空时后台自动创建并落库 | ✅ 通过 |
+|           | 文档分块/检索 | 上传后自动解析 chunk，关键词检索命中 | ✅ 通过 |
+| AI 功能  | Chat 对话 | 支持流式回答、思考内容 `<think>` 分离 | ✅ 通过 |
+|           | AI 搜索 | 搜索面板返回相关节点并可跳转 | ✅ 通过 |
+|           | AI 总结 | 新增文档自动生成摘要（LLM & 本地 fallback） | ✅ 通过 |
+| 系统设置 | 模型配置 | Chat / Embedding / Rerank 三类模型增删改 | ✅ 通过 |
+|           | 权限管理 | Token 鉴权、Cookie 登录、支持分享链接 | ✅ 通过 |
+| 前端体验 | 响应式布局 | 桌面与移动端自适应、支持 iframe 挂件 | ✅ 通过 |
+|           | 多主题 | Light/Dark 主题切换 | ✅ 通过 |
+| 部署 & 运维 | Docker Compose 一键启动 | 所有服务 healthy，重启数据不丢失 | ✅ 通过 |
+|           | 监控日志 | 后端 Echo 日志、consumer & rag logs 可观测 | ✅ 通过 |
+|           | 安全头部 | `X-Content-Type-Options: nosniff` 已添加 | ✅ 通过 |
+
+> 如发现功能缺陷或兼容性问题，请在 Issue 中反馈，并更新此表。

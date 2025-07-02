@@ -63,13 +63,11 @@ const getNodeListCached = cache(async (kb_id: string, authToken: string) => {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 };
 
 export async function generateMetadata(): Promise<Metadata> {
   const headersList = await headers()
-  const kb_id = headersList.get('x-kb-id') || process.env.DEV_KB_ID || ''
+  const kb_id = headersList.get('x-kb-id') || process.env.DEV_KB_ID || '8178501c-3de1-4c10-9c74-90e61f1716d3'
   const kbDetail = await getKBDetailCached(kb_id)
 
   return {
@@ -77,7 +75,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: kbDetail?.settings?.title || 'Panda-Wiki',
     description: kbDetail?.settings?.desc || '',
     icons: {
-      icon: kbDetail?.settings?.icon || '/favicon.png',
+      icon: kbDetail?.settings?.icon || '/favicon.ico',
     },
     openGraph: {
       title: kbDetail?.settings?.title || 'Panda-Wiki',
@@ -96,7 +94,7 @@ export default async function RootLayout({
   const cookieStore = await cookies()
   const userAgent = headersList.get('user-agent');
 
-  const kb_id = headersList.get('x-kb-id') || process.env.DEV_KB_ID || ''
+  const kb_id = headersList.get('x-kb-id') || process.env.DEV_KB_ID || '8178501c-3de1-4c10-9c74-90e61f1716d3'
   const authToken = cookieStore.get(`auth_${kb_id}`)?.value || '';
 
   const kbDetail = await getKBDetailCached(kb_id)

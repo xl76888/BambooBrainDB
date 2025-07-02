@@ -88,7 +88,7 @@ func (r *NodeRepository) GetList(ctx context.Context, req *domain.GetNodeListReq
 	query := r.db.WithContext(ctx).
 		Model(&domain.Node{}).
 		Where("nodes.kb_id = ?", req.KBID).
-		Select("nodes.id, nodes.type, nodes.status, nodes.visibility, nodes.name, nodes.parent_id, nodes.position, nodes.created_at, nodes.updated_at, nodes.meta->>'summary' as summary, nodes.meta->>'emoji' as emoji")
+		Select("nodes.id, nodes.type, nodes.status, nodes.visibility, nodes.name, nodes.parent_id, nodes.position, nodes.created_at, nodes.updated_at, nodes.meta->>'summary' as summary, nodes.meta->>'emoji' as emoji, nodes.meta->>'category' as category")
 	if req.Search != "" {
 		searchPattern := "%" + req.Search + "%"
 		query = query.Where("name LIKE ? OR content LIKE ?", searchPattern, searchPattern)
@@ -343,7 +343,7 @@ func (r *NodeRepository) GetNodeReleaseListByKBID(ctx context.Context, kbID stri
 		Where("kb_release_node_releases.kb_id = ?", kbID).
 		Where("kb_release_node_releases.release_id = ?", kbRelease.ID).
 		Where("node_releases.visibility = ?", domain.NodeVisibilityPublic).
-		Select("node_releases.node_id as id, node_releases.name, node_releases.type, node_releases.parent_id, node_releases.position, node_releases.meta->>'emoji' as emoji").
+		Select("DISTINCT node_releases.node_id as id, node_releases.name, node_releases.type, node_releases.parent_id, node_releases.position, node_releases.meta->>'emoji' as emoji, node_releases.meta->>'summary' as summary, node_releases.meta->>'category' as category").
 		Find(&nodes).Error; err != nil {
 		return nil, err
 	}
@@ -435,13 +435,69 @@ func (r *NodeRepository) UpdateNodeReleaseDocID(ctx context.Context, id, docID s
 }
 
 func (r *NodeRepository) UpdateNodeSummary(ctx context.Context, kbID, nodeID, summary string) error {
-	return r.db.WithContext(ctx).
+	// 1. 更新节点本身（draft）
+	if err := r.db.WithContext(ctx).
 		Model(&domain.Node{}).
 		Where("kb_id = ? AND id = ?", kbID, nodeID).
 		Updates(map[string]any{
 			"meta":   gorm.Expr("jsonb_set(meta, '{summary}', to_jsonb(?::text))", summary),
 			"status": domain.NodeStatusDraft,
-		}).Error
+		}).Error; err != nil {
+		return err
+	}
+
+	// 2. 同步更新最新发布版本（NodeRelease）。取更新时间最新的一条。
+	return r.db.WithContext(ctx).
+		Exec(`UPDATE node_releases SET meta = jsonb_set(coalesce(meta, '{}'::jsonb), '{summary}', to_jsonb(?::text))
+			  WHERE id = (
+				   SELECT id FROM node_releases WHERE kb_id = ? AND node_id = ? ORDER BY updated_at DESC LIMIT 1
+			  )`, summary, kbID, nodeID).Error
+}
+
+// UpdateNodeCategory update node meta.category
+func (r *NodeRepository) UpdateNodeCategory(ctx context.Context, nodeID string, category string) error {
+	// 1. 更新节点本身（draft）
+	if err := r.db.WithContext(ctx).
+		Model(&domain.Node{}).
+		Where("id = ?", nodeID).
+		Updates(map[string]any{
+			"meta":   gorm.Expr("jsonb_set(coalesce(meta, '{}'::jsonb), '{category}', to_jsonb(?::text))", category),
+			"status": domain.NodeStatusDraft,
+		}).Error; err != nil {
+		return err
+	}
+
+	// 2. 同步更新最新发布版本（NodeRelease）的分类。取更新时间最新的一条。
+	return r.db.WithContext(ctx).
+		Exec(`UPDATE node_releases SET meta = jsonb_set(coalesce(meta, '{}'::jsonb), '{category}', to_jsonb(?::text))
+			  WHERE id = (
+				   SELECT id FROM node_releases WHERE node_id = ? ORDER BY updated_at DESC LIMIT 1
+			  )`, category, nodeID).Error
+}
+
+// GetNodesWithoutCategory returns nodes whose category is null/empty/unclassified
+func (r *NodeRepository) GetNodesWithoutCategory(ctx context.Context, kbID string) ([]*domain.Node, error) {
+	var nodes []*domain.Node
+	if err := r.db.WithContext(ctx).
+		Model(&domain.Node{}).
+		Where("kb_id = ?", kbID).
+		Where("(meta->>'category' IS NULL OR meta->>'category' = '' OR meta->>'category' = '未分类')").
+		Find(&nodes).Error; err != nil {
+		return nil, err
+	}
+	return nodes, nil
+}
+
+// GetNodesByKBID returns all nodes of a knowledge base (draft status ignored)
+func (r *NodeRepository) GetNodesByKBID(ctx context.Context, kbID string) ([]*domain.Node, error) {
+	var nodes []*domain.Node
+	if err := r.db.WithContext(ctx).
+		Model(&domain.Node{}).
+		Where("kb_id = ?", kbID).
+		Find(&nodes).Error; err != nil {
+		return nil, err
+	}
+	return nodes, nil
 }
 
 // traverse all nodes by pg cursor

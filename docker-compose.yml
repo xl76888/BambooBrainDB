@@ -1,0 +1,197 @@
+services:
+  panda-wiki-postgres:
+    image: postgres:15-alpine
+    container_name: panda-wiki-postgres
+    environment:
+      POSTGRES_DB: panda-wiki
+      POSTGRES_USER: panda-wiki
+      POSTGRES_PASSWORD: panda-wiki-secret
+      TZ: Asia/Shanghai
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "5432:5432"
+    networks:
+      panda-wiki-network:
+        ipv4_address: 169.254.15.11
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U panda-wiki -d panda-wiki"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  panda-wiki-nats:
+    image: nats:2.10-alpine
+    container_name: panda-wiki-nats
+    command: [
+      "--js",
+      "--sd", "/data",
+      "--http_port", "8222",
+      "--store_dir", "/data/jetstream"
+    ]
+    volumes:
+      - nats_data:/data
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    networks:
+      panda-wiki-network:
+        ipv4_address: 169.254.15.13
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  panda-wiki-redis:
+    image: redis:7-alpine
+    container_name: panda-wiki-redis
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      panda-wiki-network:
+        ipv4_address: 169.254.15.12
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  panda-wiki-minio:
+    image: minio/minio:latest
+    container_name: panda-wiki-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ACCESS_KEY: s3panda-wiki
+      MINIO_SECRET_KEY: panda-wiki-secret
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - panda-wiki-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 临时启动脚本，跳过migrate直接运行API
+  panda-wiki-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.api
+    container_name: panda-wiki-backend
+    depends_on:
+      panda-wiki-postgres:
+        condition: service_healthy
+      panda-wiki-nats:
+        condition: service_healthy
+      panda-wiki-redis:
+        condition: service_healthy
+      panda-wiki-minio:
+        condition: service_healthy
+    environment:
+      POSTGRES_PASSWORD: panda-wiki-secret
+      SUBNET_PREFIX: "169.254.15"
+      NATS_PASSWORD: ""
+      S3_SECRET_KEY: panda-wiki-secret
+      ADMIN_PASSWORD: "admin123"
+      CADDY_API: ""
+    ports:
+      - "8001:8000"
+    networks:
+      - panda-wiki-network
+    restart: unless-stopped
+
+  panda-wiki-web:
+    build:
+      context: ./web/admin
+      dockerfile: Dockerfile.build
+    container_name: panda-wiki-web
+    depends_on:
+      - panda-wiki-backend
+    environment:
+      BACKEND_URL: http://panda-wiki-backend:8001
+    ports:
+      - "2443:80"
+    networks:
+      - panda-wiki-network
+    restart: unless-stopped
+
+  # 消费者服务 - 处理文件上传和知识库构建
+  panda-wiki-consumer:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.consumer
+    container_name: panda-wiki-consumer
+    depends_on:
+      panda-wiki-postgres:
+        condition: service_healthy
+      panda-wiki-nats:
+        condition: service_healthy
+      panda-wiki-redis:
+        condition: service_healthy
+      panda-wiki-minio:
+        condition: service_healthy
+    environment:
+      POSTGRES_PASSWORD: panda-wiki-secret
+      SUBNET_PREFIX: "169.254.15"
+      NATS_PASSWORD: ""
+      S3_SECRET_KEY: panda-wiki-secret
+      ADMIN_PASSWORD: "admin123"
+      CADDY_API: ""
+    networks:
+      - panda-wiki-network
+    restart: unless-stopped
+
+  # 前端应用服务
+  panda-wiki-frontend:
+    build:
+      context: ./web/app
+      dockerfile: Dockerfile.build
+    container_name: panda-wiki-frontend
+    depends_on:
+      - panda-wiki-backend
+    environment:
+      BACKEND_URL: http://panda-wiki-backend:8000
+      NEXT_PUBLIC_API_URL: http://localhost:8001
+    ports:
+      - "3010:3000"
+    networks:
+      - panda-wiki-network
+    restart: unless-stopped
+
+  # RAG服务 - 增强的文档处理服务
+  panda-wiki-rag:
+    build:
+      context: .
+      dockerfile: Dockerfile.rag
+    container_name: panda-wiki-rag
+    volumes:
+      - rag-data:/app/data
+    ports:
+      - "8080:8080"
+    networks:
+      - panda-wiki-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  nats_data:
+  redis_data:
+  minio_data:
+  rag-data:
+
+networks:
+  panda-wiki-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 169.254.15.0/24

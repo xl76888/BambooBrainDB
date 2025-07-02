@@ -5,7 +5,6 @@ import { useStore } from "@/provider";
 import { Box, TextField } from "@mui/material";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import CatalogH5 from "../node/CatalogH5";
 import NodeList from "./NodeList";
 import QuestionList from "./QuestionList";
 
@@ -68,14 +67,13 @@ const Home = () => {
     minHeight: `calc(100vh - ${footerHeight + 1}px)`,
     ...(mobile && {
       ml: 0,
-      pt: nodeList ? 22 : 13,
+      pt: nodeList ? 22 : 13, // 移动端如果有目录则需要更多的 padding-top
     }),
   }}>
     <Box sx={{
       maxWidth: '1200px',
       mx: 'auto',
     }}>
-      {nodeList && mobile && <CatalogH5 nodes={nodeList} />}
       <Box sx={{
         color: 'text.primary',
         fontSize: '40px',

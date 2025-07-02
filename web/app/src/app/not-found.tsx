@@ -42,7 +42,7 @@ export default function NotFound() {
           right: 0,
           zIndex: 1000,
         }}>
-          <Footer showBrand={false} fullWidth={true} />
+          <Footer />
         </Box>
       </Box>
     </ThemeProvider>

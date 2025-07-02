@@ -85,5 +85,9 @@ func NewEcho(logger *log.Logger, config *config.Config) *echo.Echo {
 		},
 	}))
 
+	e.Use(middleware.SecureWithConfig(middleware.SecureConfig{
+		ContentTypeNosniff: "nosniff",
+	}))
+
 	return e
 }

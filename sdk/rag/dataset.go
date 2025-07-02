@@ -2,7 +2,9 @@ package rag
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 )
 
 // CreateDataset 创建数据集
@@ -11,11 +13,34 @@ func (c *Client) CreateDataset(ctx context.Context, req CreateDatasetRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	var resp CreateDatasetResponse
-	if err := c.do(httpReq, &resp); err != nil {
-		return nil, err
+
+	// 直接读取响应体，兼容两种格式：
+	// 1. {"code":0,"data":{...}}
+	// 2. {"id":"xxx", ...}
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	return &resp.Data, nil
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// 尝试第一种格式
+	var wrapper CreateDatasetResponse
+	if err := json.Unmarshal(body, &wrapper); err == nil && wrapper.Data.ID != "" {
+		return &wrapper.Data, nil
+	}
+
+	// 尝试第二种扁平格式
+	var flat Dataset
+	if err := json.Unmarshal(body, &flat); err == nil && flat.ID != "" {
+		return &flat, nil
+	}
+
+	return nil, fmt.Errorf("unexpected create dataset response: %s", string(body))
 }
 
 // DeleteDatasets 删除数据集（支持批量）
@@ -64,9 +89,29 @@ func (c *Client) ListDatasets(ctx context.Context, req ListDatasetsRequest) ([]D
 		q.Add("id", req.ID)
 	}
 	httpReq.URL.RawQuery = q.Encode()
-	var resp ListDatasetsResponse
-	if err := c.do(httpReq, &resp); err != nil {
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
 		return nil, err
 	}
-	return resp.Data, nil
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// 尝试官方包装格式
+	var wrapper ListDatasetsResponse
+	if err := json.Unmarshal(body, &wrapper); err == nil && wrapper.Code == 0 && len(wrapper.Data) > 0 {
+		return wrapper.Data, nil
+	}
+
+	// 尝试直接数组
+	var list []Dataset
+	if err := json.Unmarshal(body, &list); err == nil && len(list) > 0 {
+		return list, nil
+	}
+
+	return nil, fmt.Errorf("unexpected list datasets response: %s", string(body))
 }

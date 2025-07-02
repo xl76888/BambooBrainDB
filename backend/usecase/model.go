@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"time"
 
@@ -49,10 +50,17 @@ func NewModelUsecase(modelRepo *pg.ModelRepository, nodeRepo *pg.NodeRepository,
 }
 
 func (u *ModelUsecase) initEmbeddingAndRerankModel(ctx context.Context) error {
-	// FIXME: just for test, remove it later
-	// shared_key by BaiZhiCloud
-	sharedKey := "sk-r8tmBtcU1JotPDPnlgZLOY4Z6Dbb7FufcSeTkFpRWA5v4Llr"
-	baseURL := "https://model-square.app.baizhi.cloud/v1"
+	// 优先读取环境变量，方便在不同部署环境中覆盖默认配置
+	sharedKey := os.Getenv("EMBEDDING_MODEL_KEY")
+	if sharedKey == "" {
+		// TODO: 后续可以考虑通过配置文件统一管理，当前保留默认值以保证兼容性
+		sharedKey = "sk-r8tmBtcU1JotPDPnlgZLOY4Z6Dbb7FufcSeTkFpRWA5v4Llr"
+	}
+
+	baseURL := os.Getenv("EMBEDDING_MODEL_BASE_URL")
+	if baseURL == "" {
+		baseURL = "https://model-square.app.baizhi.cloud/v1"
+	}
 
 	isReady := false
 	// wait for raglite to be ready
@@ -193,7 +201,10 @@ func (u *ModelUsecase) Update(ctx context.Context, req *domain.UpdateModelReq) e
 		}
 	}
 	if req.Type == domain.ModelTypeEmbedding {
-		return u.TriggerUpsertRecords(ctx)
+		if err := u.TriggerUpsertRecords(ctx); err != nil {
+			u.logger.Error("trigger upsert records failed", log.Any("error", err))
+			// 向量重建失败不阻塞模型更新
+		}
 	}
 	return nil
 }
@@ -204,6 +215,11 @@ func (u *ModelUsecase) GetChatModel(ctx context.Context) (*domain.Model, error) 
 
 func (u *ModelUsecase) UpdateUsage(ctx context.Context, modelID string, usage *schema.TokenUsage) error {
 	return u.modelRepo.UpdateUsage(ctx, modelID, usage)
+}
+
+// ActivateModel activates a model and deactivates others of the same type
+func (u *ModelUsecase) ActivateModel(ctx context.Context, modelID string) error {
+	return u.modelRepo.ActivateModel(ctx, modelID)
 }
 
 func (u *ModelUsecase) GetUserModelList(ctx context.Context, req *domain.GetProviderModelListReq) (*domain.GetProviderModelListResp, error) {
